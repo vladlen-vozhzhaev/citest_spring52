@@ -51,7 +51,7 @@ jobs:
           strip_components: 1
 
       # Шаг 6: Выполнение скрипта деплоя на сервере
-      - name: Execute deploy script
+      - name: Simple deploy and restart
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.SSH_HOST }}
@@ -59,6 +59,21 @@ jobs:
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: ${{ secrets.SSH_PORT || 22 }}
           script: |
-            cd ${{ env.DEPLOY_PATH }}
-            chmod +x deploy.sh
-            ./deploy.sh
+            # Создаем директории
+            mkdir -p /srv/{releases,backups,logs}
+
+            # Копируем новый JAR
+            TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+            mkdir -p /srv/releases/${TIMESTAMP}
+            cp /tmp/deploy/*.jar /srv/releases/${TIMESTAMP}/
+            cp /tmp/deploy/application-prod.properties /srv/releases/${TIMESTAMP}/
+
+            # Обновляем симлинк
+            ln -sfn /srv/releases/${TIMESTAMP} /srv/current
+
+            # Перезапускаем сервис
+            sudo systemctl restart myapp
+
+            # Ждем и проверяем
+            sleep 10
+            sudo systemctl status myapp
